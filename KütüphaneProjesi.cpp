@@ -2,14 +2,11 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
+#include <conio.h>
 
 #define BOOK_MAX 100
 
-enum Authority{
-	Customer,
-	Employee,
-	unregistered,
-};
+typedef enum Authority {Admin=1, Customer=2, Guest=3} Authority;
 
 struct Person{
 	int id;
@@ -33,24 +30,24 @@ struct NodePerson{
 	Person data;
 	struct NodePerson* next;
 };
-NodeBook* CreateBookList(Book dataBook){
-    NodeBook* head = (NodeBook*)malloc(sizeof(NodeBook));
-    head->data = dataBook;
-    head->next = NULL;
+NodeBook** CreateBookList(NodeBook** head,Book dataBook){
+    *head = (NodeBook*)malloc(sizeof(NodeBook));
+    (*head)->data = dataBook;
+    (*head)->next = NULL;
     return head;
 }
 
-NodePerson* CreatePersonList(Person dataPerson){
-    NodePerson* head = (NodePerson*)malloc(sizeof(NodePerson));
-    head->data = dataPerson;
-    head->next = NULL;
+NodePerson** CreatePersonList(NodePerson** head,Person dataPerson){
+    *head = (NodePerson*)malloc(sizeof(NodePerson));
+    (*head)->data = dataPerson;
+    (*head)->next = NULL;
 
     return head;
 }
 
 NodeBook* AddBook(NodeBook** head,Book dataBook){
 	
-	if((*head) == NULL) return CreateBookList(dataBook);
+	if((*head) == NULL) return *CreateBookList(head,dataBook);
 	else{
 		for(int i = 0; i < BOOK_MAX;i++){
 		   if((*head)->data.name[i] < dataBook.name[i]) break;
@@ -84,10 +81,42 @@ NodeBook* AddBook(NodeBook** head,Book dataBook){
 	
 	return *head;
 }
+
+NodeBook* DeleteBook(NodeBook** head,int bookId){
+	if((*head) == NULL) {
+		printf("\nListe bos!");
+		return NULL;
+	}
+	else{
+		
+		if((*head)->data.id == bookId){
+			struct NodeBook* temp = (*head)->next;
+			free(*head);
+			(*head) = temp;
+		}
+		else{
+			struct NodeBook** ptr = head;
+	     	while((*ptr)->next != NULL && (*ptr)->next->data.id != bookId){
+	     		(*ptr) = (*ptr)->next;
+			 }
+			if((*ptr)->next != NULL){
+				struct NodeBook** temp = &((*ptr)->next);
+				(*ptr)->next = (*ptr)->next->next;
+				free(*temp);
+				printf("\nSilindi");
+                return *head;			
+			}
+			else{
+				printf("\nListede boyle bir kitap yok");
+			}
+		}
+	}
+	return *head;
+}
 //string.h kullanýlarak yazýlan fonksiyon.
 NodePerson* AddPerson(NodePerson** head, Person dataPerson){
 	
-	if((*head) == NULL) return CreatePersonList(dataPerson);
+	if((*head) == NULL) return *CreatePersonList(head,dataPerson);
 	else{
 		for(int i = 0; i < 20; i++){ // 20, isim alanýnýn boyutu. 
 		   if((*head)->data.name[i] < dataPerson.name[i]) break;
@@ -120,9 +149,40 @@ NodePerson* AddPerson(NodePerson** head, Person dataPerson){
 	}
 	return *head;
 }
+NodePerson* DeletePerson(NodePerson** head, int personId){
+	if((*head) == NULL) {
+		printf("\nListe bos!");
+		return NULL;
+	}
+	else{
+		if((*head)->data.id == personId){
+			NodePerson* temp = (*head)->next;
+			free(*head);
+			(*head) = temp;
+		}
+		else{
+			NodePerson* ptr = *head;
+	     	while(ptr->next != NULL && ptr->next->data.id != personId){
+	     		ptr = ptr->next;
+			 }
+			if(ptr->next != NULL){
+				NodePerson* temp = ptr->next;
+				ptr->next = ptr->next->next;
+				free(temp);
+				printf("\nSilindi");
+                return *head;			
+			}
+			else{
+				printf("\nListede boyle bir kisi yok");
+			}
+		}
+	}
+	return *head;
+}
 
 void PrintfList(NodeBook* head){
 	struct NodeBook* ptr = head;
+	if(ptr == NULL) printf("\nListe Bos!");
 	while(ptr != NULL){
 		printf("\nId :%d,\nName:%s\nType:%s\nCustomerId:%d",ptr->data.id,ptr->data.name,ptr->data.type,ptr->data.customerId);
 		ptr = ptr->next;
@@ -130,6 +190,7 @@ void PrintfList(NodeBook* head){
 }
 void PrintPersonList(NodePerson* head){
 	struct NodePerson* ptr = head;
+	if(ptr == NULL) printf("\nListe Bos!");
 	while(ptr != NULL){
 		printf("\nId :%d,\nName:%s\nSurname:%s\nAuthority:%d",ptr->data.id,ptr->data.name,ptr->data.surname,ptr->data.yetki);
 		ptr = ptr->next;
@@ -152,7 +213,7 @@ void BookCache(NodeBook** head,char* name){
 
 void AddBookListToFile(NodeBook* head,char* name){
 	
-	FILE* fp = fopen(name,"a+b");
+	FILE* fp = fopen(name,"w+b");
 	
 	if(fp == NULL) printf("File can not open!");
 	else{
@@ -182,13 +243,13 @@ void PersonCache(NodePerson** head,char* name){
 
 void AddPersonListToFile(NodePerson* head, char* name){
 	
-	FILE* fp = fopen(name,"a+b");
+	FILE* fp = fopen(name,"w+b");
 	
 	if(fp == NULL) {
 		printf("File can not open!");
 		return;
 	}
-	
+	fseek(fp,0,SEEK_END);
 	struct NodePerson* ptr = head;
 	while(ptr != NULL){
 		if(fwrite(&(ptr->data), sizeof(Person), 1, fp) != 1){
@@ -200,31 +261,63 @@ void AddPersonListToFile(NodePerson* head, char* name){
 	fclose(fp);
 }
 
-enum Authority YetkiKontrol(NodePerson* head,struct Person person){
+Authority YetkiKontrol(NodePerson* head,struct Person person){
 	struct NodePerson* ptr = head;
 	while(ptr != NULL && ptr->data.id != person.id){
 		ptr = ptr->next;
 	}
-	if(ptr->data.id == person.id){
-		return person.yetki;
+	if(ptr != NULL && ptr->data.id == person.id){
+		return ptr->data.yetki;
 	}
-	printf("\nKayýtlý kullanýcý bulunamadi!");
+	printf("\nKayitli kullanici bulunamadi!");
 	
-	return unregistered;
+	return Guest;
 }
 void CustomerKayit(NodePerson** head,Person* person){
-	struct NodePerson* ptr = *head;
+	struct NodePerson** ptr = head;
 	int i = 0;
-	while(ptr != NULL){
-		ptr = ptr->next;
+	while((*ptr) != NULL){
+		*ptr = (*ptr)->next;
 	    i++;
 	} 
 	person->id = i+1;
 	person->yetki = Customer;
+	NodePerson* result = AddPerson(head,*person);
+	if(result != NULL) printf("Eklendi!");
+	else printf("Basarisiz islem");
+}
+void RentBook(struct NodeBook** head,Person person,int bookId){
+	struct NodeBook** ptr = head;
 	
-	AddPerson(head,*person);
+	while((*ptr) != NULL && (*ptr)->data.id != bookId){
+		*ptr = (*ptr)->next;
+	}
+	if((*ptr)->data.customerId != 0) printf("\nBu kitap su anda kiralik!");
+	else{
+		(*ptr)->data.customerId = person.id;
+		printf("\nKitab basari ile kiralanmistir."); 
+	}
 }
 
+void AddBookMenu(NodeBook** head){
+	struct Book temp;
+	
+	printf("\nKitab bilgilerini doldurunuz..");
+	printf("\nAdi :");
+	scanf("%s",&temp.name);
+	printf("\nKitabin turu :");
+	fflush(stdin);
+	scanf("%s",&temp.type);
+	int i =0;
+	struct NodeBook* ptr = *head;
+	while(ptr != NULL){
+		ptr = ptr->next;
+		i++;
+	}
+	temp.id = i;
+	temp.customerId = 0;
+	AddBook(head,temp);
+}
 int main(){
 
 	Person* person = (struct Person*)malloc(sizeof(struct Person));
@@ -234,26 +327,30 @@ int main(){
 	
 	BookCache(&headBook,"Books.bin");
 	PersonCache(&headPerson,"Persons.bin");
-	
-	while(1){
+	int a = 1;
+	while(a == 1){
 		printf("\nWelcome! Adinizi girin :");
-		scanf("%s", person->name);
+		scanf("%s", &(person->name));
 		printf("\nSoyadinizi girin :");
-		scanf("%s", person->surname);
-		
-		enum Authority mevcutYetki = YetkiKontrol(headPerson,*person);
-		int secim;
+		scanf("%s", &(person->surname));
+		printf("\nKimlik degerinizi giriniz (Kayitli degil iseniz 0 a basin):");
+		scanf("%d",&(person->id));
+		Authority mevcutYetki = YetkiKontrol(headPerson,*person);
 		switch(mevcutYetki){
 			case Customer:{
-				printf("\n%s %s tekrardan Merhaba",mevcutYetki,person->name);
-				printf("\n\n1 - Kitap listesini gör\n2 - Kitap Kirala\n3 - Çýkýþ\nSeciminizi girin: ");
+				int secim;
+				printf("\nCustomer %s tekrardan Merhaba",person->name);
+				printf("\n\n1 - Kitap listesini gör\n2 - Kitap Kirala\n3 - Cikis\nSeciminizi girin: ");
 				scanf("%d", &secim);
 				switch(secim){
 					case 1:
 						PrintfList(headBook);
 						break;
 					case 2:
-						// RentBook fonksiyonunun tamamlanmasý gerekmekte
+						int secim;
+						printf("\nKiralamk istediginiz kitabin id'sini giriniz :'");
+						scanf("%d",&secim);
+						RentBook(&headBook,*person,secim);
 						break;
 					case 3:
 						exit(0);
@@ -262,38 +359,49 @@ int main(){
 				}
 				break;
 			}
-			case Employee:{
-				printf("\n%s %s tekrardan Merhaba",mevcutYetki,person->name);
-				printf("\n\n1 - Kitap listesini gör\n2 - Kitap Ekle\n3 - Kitap Sil\n4 - Çýkýþ\nSeciminizi girin: ");
+			case Admin:{
+				int secim;
+				printf("\nAdmin %s tekrardan Merhaba",person->name);
+				printf("\n\n1 - Kitap listesini gör\n2 - Kitap Ekle\n3 - Kitap Sil\n4 - Cikis\nSeciminizi girin: ");
 				scanf("%d", &secim);
 				switch(secim){
 					case 1:
 						PrintfList(headBook);
 						break;
 					case 2:
-						// AddBook fonksiyonunun tamamlanmasý gerekmekte
+						AddBookMenu(&headBook);
 						break;
 					case 3:
-						// Bir kitap silme fonksiyonu tamamlanmalý
+						int secim;
+						printf("\nSilinecek kitabin id degerini giriniz :");
+						scanf("%d",&secim);
+						DeleteBook(&headBook,secim);
 						break;
 					case 4:
 						exit(0);
 					default:
-						printf("Geçersiz seçim!\n");
+						printf("\nGeçersiz seçim!\n");
 				}
 				break;
 			}
-			case unregistered:{
+			case Guest:{
+				int secim;
 				printf("\nHerhangi bir kaydiniz bulunmamaktadir. Kayit yaptirmak icin 1'e baisiniz :");
 				scanf("%d",&secim);
 				if(secim != 1) break;
 				else{
 					CustomerKayit(&headPerson,person);
+					PrintPersonList(headPerson);
 				}
 				break;
 			}
 		}
+
+		printf("\nDevam etmek icin 1'e basin ");
+		scanf("%d",&a);
 	}
+	AddBookListToFile(headBook,"Books.bin");
+	AddPersonListToFile(headPerson,"Persons.bin");
 	return 0;
 }
 
